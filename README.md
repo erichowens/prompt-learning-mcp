@@ -219,4 +219,5 @@ MIT
 
 - **Documentation**: https://www.someclaudeskills.com/skills/automatic-stateful-prompt-improver
 - **Skill Definition**: Part of the [Some Claude Skills](https://www.someclaudeskills.com) collection
-- **Issues**: https://github.com/someclaudeskills/prompt-learning-mcp/issues
+- **GitHub**: https://github.com/erichowens/prompt-learning-mcp
+- **Issues**: https://github.com/erichowens/prompt-learning-mcp/issues
