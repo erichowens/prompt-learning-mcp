@@ -278,16 +278,17 @@ Improved prompt (output only the prompt, nothing else):`
       .map(([name, { description }]) => `- ${name}: ${description}`)
       .join('\n');
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert prompt engineer evaluating prompt quality. Rate prompts on a 0-10 scale for each criterion. Be critical but fair. Output ONLY valid JSON.`
-        },
-        {
-          role: 'user',
-          content: `Evaluate this prompt for the "${domain}" domain:
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert prompt engineer evaluating prompt quality. Rate prompts on a 0-10 scale for each criterion. Be critical but fair. Output ONLY valid JSON.`
+          },
+          {
+            role: 'user',
+            content: `Evaluate this prompt for the "${domain}" domain:
 
 ---
 ${prompt}
@@ -305,14 +306,13 @@ Output JSON format:
   "effectiveness": <0-10>,
   "reasoning": "<brief explanation of strengths and weaknesses>"
 }`
-        }
-      ],
-      max_tokens: 300,
-      temperature: 0.3, // Low temp for consistent evaluation
-      response_format: { type: 'json_object' }
-    });
+          }
+        ],
+        max_tokens: 300,
+        temperature: 0.3, // Low temp for consistent evaluation
+        response_format: { type: 'json_object' }
+      });
 
-    try {
       const evaluation = JSON.parse(response.choices[0]?.message?.content || '{}');
 
       // Calculate weighted score
@@ -331,7 +331,7 @@ Output JSON format:
 
       return weightedScore;
     } catch (e) {
-      console.error('[Optimizer] Failed to parse evaluation:', e);
+      console.error('[Optimizer] Failed to score prompt:', e);
       // Fallback to quick heuristic only if LLM fails
       return this.quickHeuristicFallback(prompt);
     }
