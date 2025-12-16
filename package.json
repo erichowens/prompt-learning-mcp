@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "prompt-learning-mcp": "./dist/index.js"
+    "prompt-learning-mcp": "./dist/index.js",
+    "prompt-learn": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

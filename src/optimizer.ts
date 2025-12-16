@@ -184,6 +184,7 @@ export class PromptOptimizer {
 
   /**
    * Learn from similar high-performing prompts
+   * CONSERVATIVE: Only adds clarity/structure, never changes the core request
    */
   async learnFromSimilar(
     prompt: string,
@@ -197,39 +198,52 @@ export class PromptOptimizer {
     // Extract patterns from top performers
     const topPrompts = sorted.slice(0, 3).map(p => p.prompt_text);
 
-    // Use LLM to synthesize improvements
+    // Use LLM to synthesize improvements - CONSERVATIVE mode
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are a prompt optimization expert. Analyze high-performing prompts and suggest improvements.`
+          content: `You are a prompt clarity specialist. Your job is to make prompts clearer and more specific WITHOUT changing what the user is asking for.
+
+RULES:
+1. PRESERVE the exact intent - if they say "fix bug", don't change it to "refactor" or add new features
+2. NEVER add requirements the user didn't mention (no "add tests", "add comments", "implement X" unless asked)
+3. ONLY add clarity: specify what kind of output, ask for explanation of changes, request step-by-step approach
+4. Keep it concise - don't bloat a simple request
+5. If the prompt is already clear, return it unchanged`
         },
         {
           role: 'user',
-          content: `Current prompt to improve:
-${prompt}
+          content: `Original prompt to clarify:
+"${prompt}"
 
-High-performing similar prompts:
-${topPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n\n')}
+Reference patterns from effective prompts (for style, not content):
+${topPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
-Based on what makes the high-performing prompts effective, provide an improved version of the current prompt. Only output the improved prompt, nothing else.`
+Clarify the original prompt while keeping the EXACT same request. Output only the improved prompt:`
         }
       ],
-      max_tokens: 500,
-      temperature: 0.7
+      max_tokens: 300,
+      temperature: 0.3  // Lower temp for more conservative output
     });
 
     const improved = response.choices[0]?.message?.content?.trim() || prompt;
 
+    // Safety check: if the improved version is way longer or seems to have added scope, reject it
+    if (improved.length > prompt.length * 3) {
+      return { improved: prompt, insights: 'Skipped - would add too much scope' };
+    }
+
     return {
       improved,
-      insights: `Learned from ${topPrompts.length} high-performing prompts`
+      insights: `Clarified based on ${topPrompts.length} effective prompts`
     };
   }
 
   /**
    * Generate a candidate using OPRO-style meta-prompting
+   * CONSERVATIVE: Improves clarity without changing scope
    */
   async generateCandidate(currentPrompt: string, domain: string): Promise<string> {
     // Build meta-prompt with history
@@ -243,30 +257,38 @@ Based on what makes the high-performing prompts effective, provide an improved v
       messages: [
         {
           role: 'system',
-          content: `You are optimizing prompts for the "${domain}" domain. Generate improved versions that score higher.`
+          content: `You are a prompt clarity specialist for "${domain}" tasks. Make prompts clearer WITHOUT changing their scope.
+
+STRICT RULES:
+- NEVER add new requirements or features the user didn't ask for
+- NEVER change "fix" to "refactor" or "implement" to "redesign"
+- ONLY improve: clarity, specificity about the existing request, output format
+- Keep the improved prompt concise - don't add fluff
+- If the prompt is already good, return it unchanged`
         },
         {
           role: 'user',
           content: `Previous attempts and scores:
 ${historyText}
 
-Generate an improved prompt that will score higher. Focus on:
-1. Clarity and specificity
-2. Appropriate constraints
-3. Clear output format expectations
-4. Domain-appropriate language
-
 Current prompt:
 ${currentPrompt}
 
-Improved prompt (output only the prompt, nothing else):`
+Make this clearer while preserving the EXACT intent. Output only the improved prompt:`
         }
       ],
-      max_tokens: 500,
-      temperature: 0.8
+      max_tokens: 300,
+      temperature: 0.4  // Lower temp for conservative output
     });
 
-    return response.choices[0]?.message?.content?.trim() || currentPrompt;
+    const result = response.choices[0]?.message?.content?.trim() || currentPrompt;
+
+    // Safety: reject if it added too much
+    if (result.length > currentPrompt.length * 2.5) {
+      return currentPrompt;
+    }
+
+    return result;
   }
 
   /**
